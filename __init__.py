@@ -2,7 +2,7 @@ import importlib
 import bpy
 import renderchan_importer
 importlib.reload(renderchan_importer)
-from renderchan_importer import RenderChanImporter
+from renderchan_importer import *
 
 bl_info = {
     "name": "Import rendered files with RenderChan",
