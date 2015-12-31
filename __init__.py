@@ -18,13 +18,20 @@ bl_info = {
 def add_import_button(self, context):
     self.layout.operator(RenderChanImporter.bl_idname, text="RenderChan Dependency")
 
+def add_add_button(self, context):
+    self.layout.operator(RenderChanSequenceAdd.bl_idname, text="RenderChan Dependency")
+
 def register():
     bpy.utils.register_class(RenderChanImporter)
+    bpy.utils.register_class(RenderChanSequenceAdd)
     bpy.types.INFO_MT_file_import.append(add_import_button)
- 
+    bpy.types.SEQUENCER_MT_add.append(add_add_button)
+
 def unregister():
     bpy.utils.unregister_class(RenderChanImporter)
+    bpy.utils.unregister_class(RenderChanSequenceAdd)
     bpy.types.INFO_MT_mesh_add.remove(add_import_button)
- 
+    bpy.types.SEQUENCER_MT_add.remove(add_add_button)
+
 if __name__ == "__main__":
     register()
