@@ -43,6 +43,27 @@ class LoadDialog(bpy.types.Operator):
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
 
+class RCRefreshImage(bpy.types.Operator):
+    bl_idname = "image.rc_refresh"
+    bl_label = "Rerender"
+    
+    def execute(self, context):
+        try:
+            print("Refresh from " + context.edit_image.filepath_from_user())
+            subprocess.check_call(["renderchan", context.edit_image.filepath_from_user()])
+        except subprocess.CalledProcessError as e:
+            self.report({"ERROR"}, "RenderChan encountered an error")
+        bpy.ops.image.reload()
+        return {"FINISHED"}
+
+class ImageEditorPanel(bpy.types.Panel):
+    bl_label = "RenderChan"
+    bl_space_type = "IMAGE_EDITOR"
+    bl_region_type = "UI"
+    
+    def draw(self, context):
+        self.layout.row().operator("image.rc_refresh")
+
 @persistent
 def load_handler(something):
     #bpy.data.filepath
@@ -64,6 +85,8 @@ def register():
     bpy.utils.register_class(RenderChanImporter)
     bpy.utils.register_class(RenderChanSequenceAdd)
     bpy.utils.register_class(LoadDialog)
+    bpy.utils.register_class(RCRefreshImage)
+    bpy.utils.register_class(ImageEditorPanel)
     bpy.types.INFO_MT_file_import.append(add_import_button)
     bpy.types.SEQUENCER_MT_add.append(add_add_button)
     bpy.app.handlers.load_post.append(load_handler)
@@ -72,6 +95,8 @@ def unregister():
     bpy.utils.unregister_class(RenderChanImporter)
     bpy.utils.unregister_class(RenderChanSequenceAdd)
     bpy.utils.unregister_class(LoadDialog)
+    bpy.utils.unregister_class(RCRefreshImage)
+    bpy.utils.unregister_class(ImageEditorPanel)
     bpy.types.INFO_MT_mesh_add.remove(add_import_button)
     bpy.types.SEQUENCER_MT_add.remove(add_add_button)
 
