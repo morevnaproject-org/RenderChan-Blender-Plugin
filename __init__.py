@@ -61,6 +61,10 @@ class ImageEditorPanel(bpy.types.Panel):
     bl_space_type = "IMAGE_EDITOR"
     bl_region_type = "UI"
     
+    @classmethod
+    def poll(self, context):
+        return (context.edit_image is not None)
+    
     def draw(self, context):
         self.layout.row().operator("image.rc_refresh")
 
