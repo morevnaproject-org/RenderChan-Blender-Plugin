@@ -3,6 +3,7 @@ import bpy
 import renderchan_importer
 importlib.reload(renderchan_importer)
 from renderchan_importer import *
+from bpy.app.handlers import persistent
 
 bl_info = {
     "name": "Import rendered files with RenderChan",
@@ -21,15 +22,56 @@ def add_import_button(self, context):
 def add_add_button(self, context):
     self.layout.operator(RenderChanSequenceAdd.bl_idname, text="RenderChan Dependency")
 
+class LoadDialog(bpy.types.Operator):
+    bl_idname = "object.rc_load_dialog"
+    bl_label = "RenderChan"
+ 
+    should_update = BoolProperty(name="Update?", description="Should dependencies be updated?")
+    
+    def draw(self, context):
+        self.layout.label("Modified dependencies detected.")
+        self.layout.prop(self, "should_update")
+ 
+    def execute(self, context):
+        if self.should_update:
+            try:
+                subprocess.check_call(["renderchan", "--deps", context.blend_data.filepath])
+            except subprocess.CalledProcessError as e:
+                self.report({"ERROR"}, "RenderChan encountered an error")
+        return {'FINISHED'}
+ 
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
+
+@persistent
+def load_handler(something):
+    #bpy.data.filepath
+    # Can't use this until RenderChan adds this feature
+    # This operation relies on too much code to just copy it over from RenderChan's source
+    #file_to_update = subprocess.check_output(["renderchan", "--dry-run", "--deps", self.filepath])
+    # For the moment we just assume that there are no updates
+    file_to_update = ""
+    file_to_update = file_to_update.strip()
+    if file_to_update != "":
+        bpy.ops.object.rc_load_dialog('INVOKE_DEFAULT')
+        # Can't use this until RenderChan adds this feature
+        # This operation relies on too much code to just copy it over from RenderChan's source
+        #output_file = subprocess.check_output(["renderchan", "--dry-run", "--no-deps", self.filepath])
+        # For the moment we can use this naive substitute that assumes the structure and format
+        #output_file = os.path.join(os.path.dirname(self.filepath), "render", os.path.basename(self.filepath) + ".png")
+
 def register():
     bpy.utils.register_class(RenderChanImporter)
     bpy.utils.register_class(RenderChanSequenceAdd)
+    bpy.utils.register_class(LoadDialog)
     bpy.types.INFO_MT_file_import.append(add_import_button)
     bpy.types.SEQUENCER_MT_add.append(add_add_button)
+    bpy.app.handlers.load_post.append(load_handler)
 
 def unregister():
     bpy.utils.unregister_class(RenderChanImporter)
     bpy.utils.unregister_class(RenderChanSequenceAdd)
+    bpy.utils.unregister_class(LoadDialog)
     bpy.types.INFO_MT_mesh_add.remove(add_import_button)
     bpy.types.SEQUENCER_MT_add.remove(add_add_button)
 
