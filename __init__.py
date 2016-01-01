@@ -20,6 +20,7 @@ def add_import_button(self, context):
     self.layout.operator(RenderChanImporter.bl_idname, text="RenderChan Dependency")
 
 def add_add_button(self, context):
+    self.layout.operator_context = "INVOKE_REGION_WIN"
     self.layout.operator(RenderChanSequenceAdd.bl_idname, text="RenderChan Dependency")
 
 class LoadDialog(bpy.types.Operator):
@@ -63,7 +64,7 @@ class ImageEditorPanel(bpy.types.Panel):
     
     @classmethod
     def poll(self, context):
-        return (context.edit_image is not None)
+        return context.edit_image is not None
     
     def draw(self, context):
         self.layout.row().operator("image.rc_refresh")
