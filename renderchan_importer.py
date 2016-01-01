@@ -33,7 +33,20 @@ class RenderChanImporter(Operator, ImportHelper):
     
     def execute(self, context):
         try:
-            subprocess.check_call(["renderchan", self.filepath]);
+            command = ["renderchan", self.filepath]
+            if render_farm != "none":
+                command.append("--renderfarm")
+                command.append(render_farm)
+            if render_farm == "puli":
+                command.append("--host")
+                command.append(host)
+                command.append("--port")
+                command.append(port)
+            elif render_farm == "afantasy":
+                command.append("--cgru-location")
+                command.append(cgru_location)
+            subprocess.check_call(command)
+            
             # Can't use this until RenderChan adds this feature
             # This operation relies on too much code to just copy it over from RenderChan's source
             #output_file = subprocess.check_output(["renderchan", "--dry-run", "--no-deps", self.filepath])
@@ -79,7 +92,20 @@ class RenderChanSequenceAdd(Operator, ImportHelper):
     
     def execute(self, context):
         try:
-            subprocess.check_call(["renderchan", self.filepath]);
+            command = ["renderchan", self.filepath]
+            if render_farm != "none":
+                command.append("--renderfarm")
+                command.append(render_farm)
+            if render_farm == "puli":
+                command.append("--host")
+                command.append(host)
+                command.append("--port")
+                command.append(port)
+            elif render_farm == "afantasy":
+                command.append("--cgru-location")
+                command.append(cgru_location)
+            subprocess.check_call(command)
+            
             # Can't use this until RenderChan adds this feature
             # This operation relies on too much code to just copy it over from RenderChan's source
             #output_file = subprocess.check_output(["renderchan", "--dry-run", "--no-deps", self.filepath])
