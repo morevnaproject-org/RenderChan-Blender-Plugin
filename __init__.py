@@ -1,9 +1,10 @@
-import importlib
 import bpy
-import renderchan_importer
-importlib.reload(renderchan_importer)
-from renderchan_importer import *
 from bpy.app.handlers import persistent
+from bpy.types import Operator
+from bpy_extras.io_utils import ImportHelper
+import subprocess
+import os.path
+from bpy.props import *
 
 bl_info = {
     "name": "Import rendered files with RenderChan",
@@ -16,6 +17,17 @@ bl_info = {
     "category": "Import-Export"
 }
 
+def draw_render_options(layout, scene):
+    layout.prop(scene.renderchan, "profile")
+    layout.prop(scene.renderchan, "stereo")
+    layout.prop(scene.renderchan, "render_farm")
+    
+    if scene.renderchan.render_farm == "puli":
+        layout.prop(scene.renderchan, "host")
+        layout.prop(scene.renderchan, "port")
+    elif scene.renderchan.render_farm == "afantasy":
+        layout.prop(scene.renderchan, "cgru_location")
+
 def add_import_button(self, context):
     self.layout.operator(RenderChanImporter.bl_idname, text="RenderChan Dependency")
 
@@ -27,11 +39,28 @@ class LoadDialog(bpy.types.Operator):
     bl_idname = "object.rc_load_dialog"
     bl_label = "RenderChan"
  
-    should_update = BoolProperty(name="Update?", description="Should dependencies be updated?")
+    should_update = BoolProperty(name="Update?", description="Should dependencies be updated?", default=True)
     
     def draw(self, context):
         self.layout.label("Modified dependencies detected.")
         self.layout.prop(self, "should_update")
+        # Draw does not appear to be called on property updates for dialogs, so we can't use draw_render_options
+        self.layout.prop(context.scene.renderchan, "profile")
+        self.layout.prop(context.scene.renderchan, "stereo")
+        self.layout.separator()
+        self.layout.prop(context.scene.renderchan, "render_farm")
+        renderfarm_row = self.layout.row()
+        puli_column = renderfarm_row.column()
+        puli_column.label("Puli")
+        puli_column.prop(context.scene.renderchan, "host")
+        puli_column.prop(context.scene.renderchan, "port")
+        afantasy_column = renderfarm_row.column()
+        afantasy_column.label("Afantasy")
+        afantasy_column.label("Cgru Location:")
+        afantasy_column.prop(context.scene.renderchan, "cgru_location", text="") 
+    
+    def invoke(self, context, event):
+        return context.window_manager.invoke_props_dialog(self)
  
     def execute(self, context):
         if self.should_update:
@@ -40,9 +69,6 @@ class LoadDialog(bpy.types.Operator):
             except subprocess.CalledProcessError as e:
                 self.report({"ERROR"}, "RenderChan encountered an error")
         return {'FINISHED'}
- 
-    def invoke(self, context, event):
-        return context.window_manager.invoke_props_dialog(self)
 
 class RCRefreshImage(bpy.types.Operator):
     bl_idname = "image.rc_refresh"
@@ -50,7 +76,6 @@ class RCRefreshImage(bpy.types.Operator):
     
     def execute(self, context):
         try:
-            print("Refresh from " + context.edit_image.filepath_from_user())
             subprocess.check_call(["renderchan", context.edit_image.filepath_from_user()])
         except subprocess.CalledProcessError as e:
             self.report({"ERROR"}, "RenderChan encountered an error")
@@ -69,17 +94,6 @@ class RenderOptions(bpy.types.PropertyGroup):
     # Afantasy render farm only
     cgru_location = StringProperty(name="Cgru Location", description="Cgru directory for Afantasy renderfarm.", default="/opt/cgru", subtype="DIR_PATH")
 
-def drawRenderOptions(layout, scene):
-    layout.prop(scene.renderchan, "profile")
-    layout.prop(scene.renderchan, "stereo")
-    layout.prop(scene.renderchan, "render_farm")
-    
-    if scene.renderchan.render_farm == "puli":
-        layout.prop(scene.renderchan, "host")
-        layout.prop(scene.renderchan, "port")
-    elif scene.renderchan.render_farm == "afantasy":
-        layout.prop(scene.renderchan, "cgru_location")
-
 class ImageEditorPanel(bpy.types.Panel):
     bl_label = "RenderChan"
     bl_space_type = "IMAGE_EDITOR"
@@ -92,7 +106,7 @@ class ImageEditorPanel(bpy.types.Panel):
         return context.edit_image is not None
     
     def draw(self, context):
-        drawRenderOptions(self.layout, context.scene)
+        draw_render_options(self.layout, context.scene)
         self.layout.operator("image.rc_refresh")
 
 class RenderChanImporter(Operator, ImportHelper):
@@ -100,7 +114,7 @@ class RenderChanImporter(Operator, ImportHelper):
     bl_label = "Import with RenderChan"
     
     def draw(self, context):
-        drawRenderOptions(self.layout, context.scene)
+        draw_render_options(self.layout, context.scene)
     
     def execute(self, context):
         try:
@@ -135,7 +149,7 @@ class RenderChanSequenceAdd(Operator, ImportHelper):
     bl_label = "Add with RenderChan"
 
     def draw(self, context):
-        drawRenderOptions(self.layout, context.scene)
+        draw_render_options(self.layout, context.scene)
     
     def execute(self, context):
         try:
@@ -204,6 +218,7 @@ def unregister():
     bpy.utils.unregister_class(ImageEditorPanel)
     bpy.types.INFO_MT_mesh_add.remove(add_import_button)
     bpy.types.SEQUENCER_MT_add.remove(add_add_button)
+    bpy.app.handlers.load_post.remove(load_handler)
 
 if __name__ == "__main__":
     register()
