@@ -142,7 +142,15 @@ class ImageEditorPanel(bpy.types.Panel):
     
     @classmethod
     def poll(self, context):
-        return context.edit_image is not None
+        if context.edit_image is None:
+            return False
+        
+        from renderchan.file import RenderChanFile
+        global rcl
+        
+        path = bpy.path.abspath(context.edit_image.filepath)
+        file = RenderChanFile(path, rcl.main.modules, rcl.main.projects)
+        return file.project != None and file.module and file.getRenderPath() == path
     
     def draw(self, context):
         draw_render_options(self.layout, context.scene)
