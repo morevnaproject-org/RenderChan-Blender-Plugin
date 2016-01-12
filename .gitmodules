@@ -1,0 +1,3 @@
+[submodule "src/RenderChan"]
+	path = src/RenderChan
+	url = https://github.com/morevnaproject/RenderChan.git

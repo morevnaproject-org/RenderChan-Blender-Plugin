@@ -5,9 +5,29 @@ from bpy_extras.io_utils import ImportHelper
 import subprocess
 import os.path
 from bpy.props import *
+from shutil import which
+import sys
+# Add blender to PATH if its not already on there
+if not which("blender"):
+    os.environ["PATH"] += os.pathsep + os.path.dirname(bpy.app.binary_path)
+# Use renderchan on path if it exists, fallback on packaged version
+renderchan_exec_path = which("renderchan")
+if renderchan_exec_path:
+    module_path = os.path.join(os.path.dirname(os.path.dirname(os.path.realpath(renderchan_exec_path))))
+    if os.path.exists(os.path.join(module_path, 'renderchan', '__init__.py')):
+        sys.path.append(module_path)
+    else:
+        sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "RenderChan"))
+else:
+    sys.path.append(os.path.join(os.path.dirname(os.path.abspath(__file__)), "RenderChan"))
+
+import renderchan
+from renderchan.core import RenderChan
+import importlib
+importlib.reload(renderchan)
 
 bl_info = {
-    "name": "Import rendered files with RenderChan",
+    "name": "Import with RenderChan",
     "author": "scribblemaniac",
     "version": (0, 1),
     "blender": (2, 76, 0),
@@ -17,15 +37,16 @@ bl_info = {
     "category": "Import-Export"
 }
 
+def refresh_everything():
+    bpy.ops.sequencer.refresh_all()
+    # TODO refresh images
+
 def draw_render_options(layout, scene):
     layout.prop(scene.renderchan, "profile")
     layout.prop(scene.renderchan, "stereo")
     layout.prop(scene.renderchan, "render_farm")
     
-    if scene.renderchan.render_farm == "puli":
-        layout.prop(scene.renderchan, "host")
-        layout.prop(scene.renderchan, "port")
-    elif scene.renderchan.render_farm == "afantasy":
+    if scene.renderchan.render_farm == "afantasy":
         layout.prop(scene.renderchan, "cgru_location")
 
 def add_import_button(self, context):
@@ -49,25 +70,31 @@ class LoadDialog(bpy.types.Operator):
         self.layout.prop(context.scene.renderchan, "stereo")
         self.layout.separator()
         self.layout.prop(context.scene.renderchan, "render_farm")
-        renderfarm_row = self.layout.row()
-        puli_column = renderfarm_row.column()
-        puli_column.label("Puli")
-        puli_column.prop(context.scene.renderchan, "host")
-        puli_column.prop(context.scene.renderchan, "port")
-        afantasy_column = renderfarm_row.column()
-        afantasy_column.label("Afantasy")
-        afantasy_column.label("Cgru Location:")
-        afantasy_column.prop(context.scene.renderchan, "cgru_location", text="") 
+        self.layout.label("Afantasy Options")
+        self.layout.prop(context.scene.renderchan, "cgru_location") 
     
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
  
     def execute(self, context):
+        global rcl
         if self.should_update:
-            try:
-                subprocess.check_call(["renderchan", "--deps", context.blend_data.filepath])
-            except subprocess.CalledProcessError as e:
-                self.report({"ERROR"}, "RenderChan encountered an error")
+            if context.scene.renderchan.profile != "default":
+                rcl.main.setProfile(context.scene.renderchan.profile)
+            if context.scene.renderchan.render_farm != "none":
+                rcl.main.renderfarm_engine = context.scene.renderchan.render_farm
+            if context.scene.renderchan.render_farm == "afantasy" and context.scene.renderchan.cgru_location:
+                rcl.main.cgru_location = context.scene.renderchan.cgru_location
+            if context.scene.renderchan.stereo == "none":
+                stereo = ""
+            else:
+                stereo = context.scene.renderchan.stereo
+            rcl.main.submit(rcl.blend, True, False, stereo)
+            
+            # Temporary fix
+            rcl.main = RenderChan()
+            
+            refresh_everything()
         return {'FINISHED'}
 
 class RCRefreshImage(bpy.types.Operator):
@@ -75,24 +102,26 @@ class RCRefreshImage(bpy.types.Operator):
     bl_label = "Rerender"
     
     def execute(self, context):
+        """
         try:
             subprocess.check_call(["renderchan", context.edit_image.filepath_from_user()])
         except subprocess.CalledProcessError as e:
             self.report({"ERROR"}, "RenderChan encountered an error")
         bpy.ops.image.reload()
+        """
         return {"FINISHED"}
 
 class RenderOptions(bpy.types.PropertyGroup):
     profile = StringProperty(name="Profile", description="What profile RenderChan should use. Leave blank to use the project's default.")
     stereo = EnumProperty(items=[("none", "None", "Do not render with stereo-3D."), ("v", "Vertical", "Vertical stereo-3D"), ("h", "Horizontal", "Horizontal stereo-3D"), \
         ("l", "Left", "Left stereo image"), ("r", "Right", "Right stereo image")], name="Stereo", description="The type of stereoscopic 3D rendering to use.", default="none")
-    render_farm = EnumProperty(items=[("none", "None", "Do not use a render farm"), ("puli", "Puli render farm", "Use Puli render farm"), \
-        ("afantasy", "Afantasy render farm", "Use Afantasy render farm")], name="Render farm", description="Determines what render farm, if any, to use.", default="none")
-    # Puli render farm only
-    host = StringProperty(name="Host", description="Renderfarm server host for Puli renderfarm", default="127.0.0.1")
-    port = IntProperty(name="Port", description="Renderfarm server port for Puli renderfarm", default=8004)
+    render_farm = EnumProperty(items=[("none", "None", "Do not use a render farm"), ("afantasy", "Afantasy render farm", "Use Afantasy render farm")], \
+        name="Render farm", description="Determines what render farm, if any, to use.", default="none")
     # Afantasy render farm only
     cgru_location = StringProperty(name="Cgru Location", description="Cgru directory for Afantasy renderfarm.", default="/opt/cgru", subtype="DIR_PATH")
+    
+    #def __init__(self):
+        
 
 class ImageEditorPanel(bpy.types.Panel):
     bl_label = "RenderChan"
@@ -117,18 +146,14 @@ class RenderChanImporter(Operator, ImportHelper):
         draw_render_options(self.layout, context.scene)
     
     def execute(self, context):
+        """
         try:
             options = context.scene.renderchan
             command = ["renderchan", self.filepath]
             if options.render_farm != "none":
                 command.append("--renderfarm")
                 command.append(options.render_farm)
-            if options.render_farm == "puli":
-                command.append("--host")
-                command.append(options.host)
-                command.append("--port")
-                command.append(options.port)
-            elif options.render_farm == "afantasy":
+            if options.render_farm == "afantasy":
                 command.append("--cgru-location")
                 command.append(options.cgru_location)
             subprocess.check_call(command)
@@ -142,6 +167,7 @@ class RenderChanImporter(Operator, ImportHelper):
             self.report({"ERROR"}, "RenderChan encountered an error")
             return {"FINISHED"}
         bpy.ops.image.open(filepath=output_file)
+        """
         return {"FINISHED"}
 
 class RenderChanSequenceAdd(Operator, ImportHelper):
@@ -152,51 +178,53 @@ class RenderChanSequenceAdd(Operator, ImportHelper):
         draw_render_options(self.layout, context.scene)
     
     def execute(self, context):
-        try:
-            options = context.scene.renderchan
-            command = ["renderchan", self.filepath]
-            if options.render_farm != "none":
-                command.append("--renderfarm")
-                command.append(options.render_farm)
-            if options.render_farm == "puli":
-                command.append("--host")
-                command.append(options.host)
-                command.append("--port")
-                command.append(options.port)
-            elif options.render_farm == "afantasy":
-                command.append("--cgru-location")
-                command.append(options.cgru_location)
-            subprocess.check_call(command)
-            
-            # Can't use this until RenderChan adds this feature
-            # This operation relies on too much code to just copy it over from RenderChan's source
-            #output_file = subprocess.check_output(["renderchan", "--dry-run", "--no-deps", self.filepath])
-            # For the moment we can use this naive substitute that assumes the structure and format
-            output_file = os.path.join(os.path.dirname(self.filepath), "render", os.path.basename(self.filepath) + ".png")
-        except subprocess.CalledProcessError as e:
-            self.report({"ERROR"}, "RenderChan encountered an error")
-            return {"FINISHED"}
-        bpy.ops.sequencer.image_strip_add(directory=os.path.dirname(output_file), file=os.path.basename(self.filepath))
+        #bpy.ops.sequencer.image_strip_add(directory="", files=["FirstAnim.0000.png", "FirstAnim.0001.png", "FirstAnim.0002.png"])
         return {"FINISHED"}
 
 @persistent
 def load_handler(something):
-    #bpy.data.filepath
-    # Can't use this until RenderChan adds this feature
-    # This operation relies on too much code to just copy it over from RenderChan's source
-    #file_to_update = subprocess.check_output(["renderchan", "--dry-run", "--deps", self.filepath])
-    # For the moment we just assume that there are no updates
-    file_to_update = ""
-    file_to_update = file_to_update.strip()
-    if file_to_update != "":
+    from renderchan.file import RenderChanFile
+    
+    global rcl
+    rcl.blend = RenderChanFile(bpy.data.filepath, rcl.main.modules, rcl.main.projects)
+    rcl.is_project = rcl.blend.project != None
+    if not rcl.is_project:
+        return
+    
+    from renderchan.utils import ini_wrapper
+    import configparser
+    
+    config = configparser.ConfigParser()
+    config.read_file(ini_wrapper(os.path.join(rcl.blend.projectPath, "project.conf")))
+    items = [("default", "Default", "The default profile")]
+    for section in config.sections():
+        if section != "default":
+            items.append((section, section, ""))
+    
+    bpy.types.RenderOptions.profile = EnumProperty(items=items, name="Profile", description="What profile RenderChan should use.", default="default")
+    
+    # TODO switch this to blender module's analyze
+    os.environ['DEBUG'] = "True"
+    deps = rcl.main.parseDirectDependency(rcl.blend, False, False)
+    # Temporary fix
+    rcl.main = RenderChan()
+    print(deps)
+    if deps[1]:
         bpy.ops.object.rc_load_dialog('INVOKE_DEFAULT')
-        # Can't use this until RenderChan adds this feature
-        # This operation relies on too much code to just copy it over from RenderChan's source
-        #output_file = subprocess.check_output(["renderchan", "--dry-run", "--no-deps", self.filepath])
-        # For the moment we can use this naive substitute that assumes the structure and format
-        #output_file = os.path.join(os.path.dirname(self.filepath), "render", os.path.basename(self.filepath) + ".png")
+
+class RenderChanLibrary():
+    def __init__(self):
+        self.main = RenderChan()
+        self.main.datadir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "templates")
 
 def register():
+    # DO NOT REMOVE THIS LINE!! Without it, the plugin becomes a fork bomb.
+    if bpy.app.background:
+        return
+    
+    global rcl
+    rcl = RenderChanLibrary()
+    
     bpy.utils.register_class(RenderOptions)
     bpy.types.Scene.renderchan = PointerProperty(type=RenderOptions, name="RenderChan", description="Options for rendering with RenderChan")
     bpy.utils.register_class(RenderChanImporter)
@@ -209,6 +237,9 @@ def register():
     bpy.app.handlers.load_post.append(load_handler)
 
 def unregister():
+    if bpy.app.background:
+        return
+    
     del bpy.types.Scene.renderchan
     bpy.utils.unregister_class(RenderOptions)
     bpy.utils.unregister_class(RenderChanImporter)
