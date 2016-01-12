@@ -37,6 +37,16 @@ bl_info = {
     "category": "Import-Export"
 }
 
+def reinit_renderchan():
+    rcl.main = RenderChan()
+    if context.scene.renderchan.profile != "default":
+        rcl.main.setProfile(context.scene.renderchan.profile)
+    if context.scene.renderchan.render_farm != "none":
+        rcl.main.renderfarm_engine = context.scene.renderchan.render_farm
+    if context.scene.renderchan.render_farm == "afantasy" and context.scene.renderchan.cgru_location:
+        rcl.main.cgru_location = context.scene.renderchan.cgru_location
+    
+
 def refresh_everything():
     bpy.ops.sequencer.refresh_all()
     # TODO refresh images
@@ -92,7 +102,7 @@ class LoadDialog(bpy.types.Operator):
             rcl.main.submit(rcl.blend, True, False, stereo)
             
             # Temporary fix
-            rcl.main = RenderChan()
+            reinit_renderchan()
             
             refresh_everything()
         return {'FINISHED'}
@@ -207,8 +217,7 @@ def load_handler(something):
     os.environ['DEBUG'] = "True"
     deps = rcl.main.parseDirectDependency(rcl.blend, False, False)
     # Temporary fix
-    rcl.main = RenderChan()
-    print(deps)
+    reinit_renderchan()
     if deps[1]:
         bpy.ops.object.rc_load_dialog('INVOKE_DEFAULT')
 
