@@ -39,12 +39,12 @@ bl_info = {
 
 def reinit_renderchan():
     rcl.main = RenderChan()
-    if context.scene.renderchan.profile != "default":
-        rcl.main.setProfile(context.scene.renderchan.profile)
-    if context.scene.renderchan.render_farm != "none":
-        rcl.main.renderfarm_engine = context.scene.renderchan.render_farm
-    if context.scene.renderchan.render_farm == "afantasy" and context.scene.renderchan.cgru_location:
-        rcl.main.cgru_location = context.scene.renderchan.cgru_location
+    if bpy.context.scene.renderchan.profile != "default":
+        rcl.main.setProfile(bpy.context.scene.renderchan.profile)
+    if bpy.context.scene.renderchan.render_farm != "none":
+        rcl.main.renderfarm_engine = bpy.context.scene.renderchan.render_farm
+    if bpy.context.scene.renderchan.render_farm == "afantasy" and bpy.context.scene.renderchan.cgru_location:
+        rcl.main.cgru_location = bpy.context.scene.renderchan.cgru_location
     
 
 def refresh_everything():
@@ -121,8 +121,21 @@ class RCRefreshImage(bpy.types.Operator):
         """
         return {"FINISHED"}
 
+def profile_items(scene, context):
+    from renderchan.utils import ini_wrapper
+    import configparser
+    global rcl
+    
+    config = configparser.ConfigParser()
+    config.read_file(ini_wrapper(os.path.join(rcl.blend.projectPath, "project.conf")))
+    rcl.items = [("default", "Default", "The default profile")]
+    for section in config.sections():
+        if section != "default":
+            rcl.items.append((section, section, ""))
+    return rcl.items
+
 class RenderOptions(bpy.types.PropertyGroup):
-    profile = StringProperty(name="Profile", description="What profile RenderChan should use. Leave blank to use the project's default.")
+    profile = EnumProperty(items=profile_items, name="Profile", description="What profile RenderChan should use. Leave blank to use the project's default.")
     stereo = EnumProperty(items=[("none", "None", "Do not render with stereo-3D."), ("v", "Vertical", "Vertical stereo-3D"), ("h", "Horizontal", "Horizontal stereo-3D"), \
         ("l", "Left", "Left stereo image"), ("r", "Right", "Right stereo image")], name="Stereo", description="The type of stereoscopic 3D rendering to use.", default="none")
     render_farm = EnumProperty(items=[("none", "None", "Do not use a render farm"), ("afantasy", "Afantasy render farm", "Use Afantasy render farm")], \
@@ -142,11 +155,11 @@ class ImageEditorPanel(bpy.types.Panel):
     
     @classmethod
     def poll(self, context):
-        if context.edit_image is None:
+        global rcl
+        if not rcl.is_project or context.edit_image is None:
             return False
         
         from renderchan.file import RenderChanFile
-        global rcl
         
         path = bpy.path.abspath(context.edit_image.filepath)
         file = RenderChanFile(path, rcl.main.modules, rcl.main.projects)
@@ -209,20 +222,6 @@ def load_handler(something):
     if not rcl.is_project:
         return
     
-    from renderchan.utils import ini_wrapper
-    import configparser
-    
-    config = configparser.ConfigParser()
-    config.read_file(ini_wrapper(os.path.join(rcl.blend.projectPath, "project.conf")))
-    items = [("default", "Default", "The default profile")]
-    for section in config.sections():
-        if section != "default":
-            items.append((section, section, ""))
-    
-    bpy.types.RenderOptions.profile = EnumProperty(items=items, name="Profile", description="What profile RenderChan should use.", default="default")
-    
-    # TODO switch this to blender module's analyze
-    os.environ['DEBUG'] = "True"
     deps = rcl.main.parseDirectDependency(rcl.blend, False, False)
     # Temporary fix
     reinit_renderchan()
@@ -231,8 +230,12 @@ def load_handler(something):
 
 class RenderChanLibrary():
     def __init__(self):
+        from renderchan.file import RenderChanFile
+        
         self.main = RenderChan()
         self.main.datadir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "templates")
+        self.is_project = False
+        self.items = []
 
 def register():
     # DO NOT REMOVE THIS LINE!! Without it, the plugin becomes a fork bomb.
