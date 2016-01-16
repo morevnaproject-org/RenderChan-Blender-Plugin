@@ -39,11 +39,12 @@ bl_info = {
 
 def reinit_renderchan():
     rcl.main = RenderChan()
+    rcl.main.datadir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "RenderChan", "templates")
     if bpy.context.scene.renderchan.profile != "default":
         rcl.main.setProfile(bpy.context.scene.renderchan.profile)
     if bpy.context.scene.renderchan.render_farm != "none":
         rcl.main.renderfarm_engine = bpy.context.scene.renderchan.render_farm
-    if bpy.context.scene.renderchan.render_farm == "afantasy" and bpy.context.scene.renderchan.cgru_location:
+    if bpy.context.scene.renderchan.render_farm == "afanasy" and bpy.context.scene.renderchan.cgru_location:
         rcl.main.cgru_location = bpy.context.scene.renderchan.cgru_location
     
 
@@ -56,7 +57,7 @@ def draw_render_options(layout, scene):
     layout.prop(scene.renderchan, "stereo")
     layout.prop(scene.renderchan, "render_farm")
     
-    if scene.renderchan.render_farm == "afantasy":
+    if scene.renderchan.render_farm == "afanasy":
         layout.prop(scene.renderchan, "cgru_location")
 
 def add_import_button(self, context):
@@ -65,6 +66,25 @@ def add_import_button(self, context):
 def add_add_button(self, context):
     self.layout.operator_context = "INVOKE_REGION_WIN"
     self.layout.operator(RenderChanSequenceAdd.bl_idname, text="RenderChan Dependency")
+
+def render_file(file, scene, dependenciesOnly):
+    global rcl
+    if scene.renderchan.profile != "default":
+        rcl.main.setProfile(scene.renderchan.profile)
+    if scene.renderchan.render_farm != "none":
+        rcl.main.renderfarm_engine = scene.renderchan.render_farm
+    if scene.renderchan.render_farm == "afanasy" and scene.renderchan.cgru_location:
+        rcl.main.cgru_location = scene.renderchan.cgru_location
+    if scene.renderchan.stereo == "none":
+        stereo = None
+    else:
+        stereo = scene.renderchan.stereo
+    rcl.main.submit(file, dependenciesOnly, False, stereo)
+    
+    # Temporary fix
+    reinit_renderchan()
+    
+    refresh_everything()
 
 class LoadDialog(bpy.types.Operator):
     bl_idname = "object.rc_load_dialog"
@@ -80,31 +100,16 @@ class LoadDialog(bpy.types.Operator):
         self.layout.prop(context.scene.renderchan, "stereo")
         self.layout.separator()
         self.layout.prop(context.scene.renderchan, "render_farm")
-        self.layout.label("Afantasy Options")
+        self.layout.label("Afanasy Options")
         self.layout.prop(context.scene.renderchan, "cgru_location") 
     
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
  
     def execute(self, context):
-        global rcl
         if self.should_update:
-            if context.scene.renderchan.profile != "default":
-                rcl.main.setProfile(context.scene.renderchan.profile)
-            if context.scene.renderchan.render_farm != "none":
-                rcl.main.renderfarm_engine = context.scene.renderchan.render_farm
-            if context.scene.renderchan.render_farm == "afantasy" and context.scene.renderchan.cgru_location:
-                rcl.main.cgru_location = context.scene.renderchan.cgru_location
-            if context.scene.renderchan.stereo == "none":
-                stereo = ""
-            else:
-                stereo = context.scene.renderchan.stereo
-            rcl.main.submit(rcl.blend, True, False, stereo)
-            
-            # Temporary fix
-            reinit_renderchan()
-            
-            refresh_everything()
+            global rcl
+            render_file(rcl.blend, context.scene, True)
         return {'FINISHED'}
 
 class RCRefreshImage(bpy.types.Operator):
@@ -112,13 +117,11 @@ class RCRefreshImage(bpy.types.Operator):
     bl_label = "Rerender"
     
     def execute(self, context):
-        """
-        try:
-            subprocess.check_call(["renderchan", context.edit_image.filepath_from_user()])
-        except subprocess.CalledProcessError as e:
-            self.report({"ERROR"}, "RenderChan encountered an error")
-        bpy.ops.image.reload()
-        """
+        from renderchan.file import RenderChanFile
+        global rcl
+        file = RenderChanFile(bpy.path.abspath(context.edit_image.filepath), rcl.main.modules, rcl.main.projects)
+        print(file.getPath())
+        render_file(file, context.scene, False)
         return {"FINISHED"}
 
 def profile_items(scene, context):
@@ -138,10 +141,10 @@ class RenderOptions(bpy.types.PropertyGroup):
     profile = EnumProperty(items=profile_items, name="Profile", description="What profile RenderChan should use. Leave blank to use the project's default.")
     stereo = EnumProperty(items=[("none", "None", "Do not render with stereo-3D."), ("v", "Vertical", "Vertical stereo-3D"), ("h", "Horizontal", "Horizontal stereo-3D"), \
         ("l", "Left", "Left stereo image"), ("r", "Right", "Right stereo image")], name="Stereo", description="The type of stereoscopic 3D rendering to use.", default="none")
-    render_farm = EnumProperty(items=[("none", "None", "Do not use a render farm"), ("afantasy", "Afantasy render farm", "Use Afantasy render farm")], \
+    render_farm = EnumProperty(items=[("none", "None", "Do not use a render farm"), ("afanasy", "Afanasy render farm", "Use Afanasy render farm")], \
         name="Render farm", description="Determines what render farm, if any, to use.", default="none")
-    # Afantasy render farm only
-    cgru_location = StringProperty(name="Cgru Location", description="Cgru directory for Afantasy renderfarm.", default="/opt/cgru", subtype="DIR_PATH")
+    # Afanasy render farm only
+    cgru_location = StringProperty(name="Cgru Location", description="Cgru directory for Afanasy renderfarm.", default="/opt/cgru", subtype="DIR_PATH")
     
     #def __init__(self):
         
@@ -184,7 +187,7 @@ class RenderChanImporter(Operator, ImportHelper):
             if options.render_farm != "none":
                 command.append("--renderfarm")
                 command.append(options.render_farm)
-            if options.render_farm == "afantasy":
+            if options.render_farm == "afanasy":
                 command.append("--cgru-location")
                 command.append(options.cgru_location)
             subprocess.check_call(command)
