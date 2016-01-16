@@ -50,7 +50,14 @@ def reinit_renderchan():
 
 def refresh_everything():
     bpy.ops.sequencer.refresh_all()
-    # TODO refresh images
+    for img in bpy.data.images:
+        img.reload()
+    # Workaround for GUI not updating
+    for w in bpy.context.window_manager.windows:
+        for a in w.screen.areas:
+            for s in a.spaces:
+                if s.type == "IMAGE_EDITOR":
+                    s.image = s.image
 
 def draw_render_options(layout, scene):
     layout.prop(scene.renderchan, "profile")
@@ -120,7 +127,6 @@ class RCRefreshImage(bpy.types.Operator):
         from renderchan.file import RenderChanFile
         global rcl
         file = RenderChanFile(bpy.path.abspath(context.edit_image.filepath), rcl.main.modules, rcl.main.projects)
-        print(file.getPath())
         render_file(file, context.scene, False)
         return {"FINISHED"}
 
