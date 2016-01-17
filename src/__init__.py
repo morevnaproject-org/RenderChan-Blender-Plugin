@@ -73,6 +73,10 @@ def add_import_button(self, context):
 def add_add_button(self, context):
     self.layout.operator_context = "INVOKE_REGION_WIN"
     self.layout.operator(RenderChanSequenceAdd.bl_idname, text="RenderChan Dependency")
+    
+def add_render_button(self, context):
+    self.layout.separator()
+    self.layout.operator(RenderChanRender.bl_idname)
 
 def render_file(file, scene, dependenciesOnly):
     global rcl
@@ -303,6 +307,20 @@ class RenderChanSequenceAdd(Operator, ImportHelper):
         #bpy.ops.sequencer.image_strip_add(directory="", files=["FirstAnim.0000.png", "FirstAnim.0001.png", "FirstAnim.0002.png"])
         return {"FINISHED"}
 
+class RenderChanRender(Operator):
+    bl_idname = "render.renderchan"
+    bl_label = "Render with RenderChan"
+
+    #def draw(self, context):
+        #draw_render_options(self.layout, context.scene)
+    
+    def execute(self, context):
+        from renderchan.file import RenderChanFile
+        
+        file = RenderChanFile(bpy.path.abspath(context.blend_data.filepath), rcl.main.modules, rcl.main.projects)
+        render_file(file, context.scene, False)
+        return {"FINISHED"}
+
 @persistent
 def load_handler(something):
     from renderchan.file import RenderChanFile
@@ -345,7 +363,9 @@ def register():
     bpy.utils.register_class(RCRefreshSequence)
     bpy.utils.register_class(ImageEditorPanel)
     bpy.utils.register_class(SequenceEditorPanel)
+    bpy.utils.register_class(RenderChanRender)
     bpy.types.INFO_MT_file_import.append(add_import_button)
+    bpy.types.RENDER_PT_render.append(add_render_button)
     #bpy.types.SEQUENCER_MT_add.append(add_add_button)
     bpy.app.handlers.load_post.append(load_handler)
 
@@ -362,7 +382,9 @@ def unregister():
     bpy.utils.unregister_class(RCRefreshSequence)
     bpy.utils.unregister_class(ImageEditorPanel)
     bpy.utils.unregister_class(SequenceEditorPanel)
+    bpy.utils.unregister_class(RenderChanRender)
     bpy.types.INFO_MT_mesh_add.remove(add_import_button)
+    bpy.types.RENDER_PT_render.append(add_render_button)
     #bpy.types.SEQUENCER_MT_add.remove(add_add_button)
     bpy.app.handlers.load_post.remove(load_handler)
 
