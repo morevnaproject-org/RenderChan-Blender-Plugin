@@ -346,7 +346,7 @@ def register():
     bpy.utils.register_class(ImageEditorPanel)
     bpy.utils.register_class(SequenceEditorPanel)
     bpy.types.INFO_MT_file_import.append(add_import_button)
-    bpy.types.SEQUENCER_MT_add.append(add_add_button)
+    #bpy.types.SEQUENCER_MT_add.append(add_add_button)
     bpy.app.handlers.load_post.append(load_handler)
 
 def unregister():
@@ -363,7 +363,7 @@ def unregister():
     bpy.utils.unregister_class(ImageEditorPanel)
     bpy.utils.unregister_class(SequenceEditorPanel)
     bpy.types.INFO_MT_mesh_add.remove(add_import_button)
-    bpy.types.SEQUENCER_MT_add.remove(add_add_button)
+    #bpy.types.SEQUENCER_MT_add.remove(add_add_button)
     bpy.app.handlers.load_post.remove(load_handler)
 
 if __name__ == "__main__":
