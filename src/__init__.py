@@ -130,6 +130,46 @@ class RCRefreshImage(bpy.types.Operator):
         render_file(file, context.scene, False)
         return {"FINISHED"}
 
+class RCRefreshSequence(bpy.types.Operator):
+    bl_idname = "sequencer.rc_refresh"
+    bl_label = "Rerender"
+    
+    def execute(self, context):
+        def get_renderchan_sequences(sequence):
+            from renderchan.file import RenderChanFile
+            
+            sequence_list = []
+            if sequence.type == "IMAGE":
+                for element in sequence.elements:
+                    path = os.path.join(bpy.path.abspath(sequence.directory), element.filename)
+                    file = RenderChanFile(path, rcl.main.modules, rcl.main.projects)
+                    if file.project != None and file.module and file.getRenderPath() == path:
+                        sequence_list.append(file)
+            elif sequence.type == "MOVIE" or sequence.type == "SOUND":
+                path = bpy.path.abspath(sequence.filepath)
+                file = RenderChanFile(path, rcl.main.modules, rcl.main.projects)
+                if file.project != None and file.module and file.getRenderPath() == path:
+                    sequence_list.append(file)
+            elif sequence.type == "META":
+                for subsequence in sequence.sequences:
+                    for file in get_renderchan_sequence(subsequence):
+                        is_unique = True
+                        for compare_file in sequence_list:
+                            if compare_file.getPath() == file.getPath():
+                                is_unique = False
+                                break
+                        if is_unique:
+                            sequence_list.append(file)
+            return sequence_list
+        
+        from renderchan.file import RenderChanFile
+        global rcl
+        for sequence in context.selected_sequences:
+            files = get_renderchan_sequences(sequence)
+            for file in files:
+                render_file(file, context.scene, False)
+        return {"FINISHED"}
+
 def profile_items(scene, context):
     from renderchan.utils import ini_wrapper
     import configparser
@@ -177,6 +217,48 @@ class ImageEditorPanel(bpy.types.Panel):
     def draw(self, context):
         draw_render_options(self.layout, context.scene)
         self.layout.operator("image.rc_refresh")
+
+class SequenceEditorPanel(bpy.types.Panel):
+    bl_label = "RenderChan"
+    bl_space_type = "SEQUENCE_EDITOR"
+    bl_region_type = "UI"
+    
+    render_options = PointerProperty(type=RenderOptions)
+    
+    @classmethod
+    def poll(self, context):
+        def is_renderchan_sequence(sequence):
+            from renderchan.file import RenderChanFile
+            
+            if sequence.type == "IMAGE":
+                for element in sequence.elements:
+                    path = os.path.join(bpy.path.abspath(sequence.directory), element.filename)
+                    file = RenderChanFile(path, rcl.main.modules, rcl.main.projects)
+                    if file.project != None and file.module and file.getRenderPath() == path:
+                        return True
+            elif sequence.type == "MOVIE" or sequence.type == "SOUND":
+                path = bpy.path.abspath(sequence.filepath)
+                file = RenderChanFile(path, rcl.main.modules, rcl.main.projects)
+                if file.project != None and file.module and file.getRenderPath() == path:
+                    return True
+            elif sequence.type == "META":
+                for subsequence in sequence.sequences:
+                    if is_renderchan_sequence(subsequence):
+                        return True
+            return False
+        
+        global rcl
+        if not rcl.is_project or context.selected_sequences is None:
+            return False
+        
+        for sequence in context.selected_sequences:
+            if is_renderchan_sequence(sequence):
+                return True
+        return False
+    
+    def draw(self, context):
+        draw_render_options(self.layout, context.scene)
+        self.layout.operator("sequencer.rc_refresh")
 
 class RenderChanImporter(Operator, ImportHelper):
     bl_idname = "import.renderchan"
@@ -260,7 +342,9 @@ def register():
     bpy.utils.register_class(RenderChanSequenceAdd)
     bpy.utils.register_class(LoadDialog)
     bpy.utils.register_class(RCRefreshImage)
+    bpy.utils.register_class(RCRefreshSequence)
     bpy.utils.register_class(ImageEditorPanel)
+    bpy.utils.register_class(SequenceEditorPanel)
     bpy.types.INFO_MT_file_import.append(add_import_button)
     bpy.types.SEQUENCER_MT_add.append(add_add_button)
     bpy.app.handlers.load_post.append(load_handler)
@@ -275,7 +359,9 @@ def unregister():
     bpy.utils.unregister_class(RenderChanSequenceAdd)
     bpy.utils.unregister_class(LoadDialog)
     bpy.utils.unregister_class(RCRefreshImage)
+    bpy.utils.unregister_class(RCRefreshSequence)
     bpy.utils.unregister_class(ImageEditorPanel)
+    bpy.utils.unregister_class(SequenceEditorPanel)
     bpy.types.INFO_MT_mesh_add.remove(add_import_button)
     bpy.types.SEQUENCER_MT_add.remove(add_add_button)
     bpy.app.handlers.load_post.remove(load_handler)
