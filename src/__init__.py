@@ -76,6 +76,7 @@ def add_sequence_add_button(self, context):
     
 def add_render_button(self, context):
     self.layout.separator()
+    draw_render_options(self.layout, context.scene)
     self.layout.operator(RenderChanRender.bl_idname)
 
 def render_file(file, scene, dependenciesOnly):
@@ -179,9 +180,11 @@ def profile_items(scene, context):
     import configparser
     global rcl
     
+    rcl.items = [("default", "Default", "The default profile")]
+    if not os.path.exists(os.path.join(rcl.blend.projectPath, "project.conf")):
+        return rcl.items
     config = configparser.ConfigParser()
     config.read_file(ini_wrapper(os.path.join(rcl.blend.projectPath, "project.conf")))
-    rcl.items = [("default", "Default", "The default profile")]
     for section in config.sections():
         if section != "default":
             rcl.items.append((section, section, ""))
@@ -363,9 +366,6 @@ class RenderChanSequenceAdd(Operator, ImportHelper):
 class RenderChanRender(Operator):
     bl_idname = "render.renderchan"
     bl_label = "Render with RenderChan"
-
-    #def draw(self, context):
-        #draw_render_options(self.layout, context.scene)
     
     def execute(self, context):
         from renderchan.file import RenderChanFile
