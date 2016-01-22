@@ -70,9 +70,9 @@ def draw_render_options(layout, scene):
 def add_import_button(self, context):
     self.layout.operator(RenderChanImporter.bl_idname, text="RenderChan Dependency")
 
-def add_add_button(self, context):
+def add_sequence_add_button(self, context):
     self.layout.operator_context = "INVOKE_REGION_WIN"
-    self.layout.operator(RenderChanSequenceAdd.bl_idname, text="RenderChan Dependency")
+    self.layout.operator(RenderChanSequenceAdd.bl_idname, text="RenderChan Media")
     
 def add_render_button(self, context):
     self.layout.separator()
@@ -299,12 +299,61 @@ class RenderChanImporter(Operator, ImportHelper):
 class RenderChanSequenceAdd(Operator, ImportHelper):
     bl_idname = "sequencer.renderchan"
     bl_label = "Add with RenderChan"
-
+    
+    files = CollectionProperty(type=bpy.types.OperatorFileListElement)
+    rel_path = BoolProperty(name="Relative Path", default=True)
+    start = IntProperty(name="Start Frame", default=0)
+    channel = IntProperty(name="Channel", default=1, min=1, max=32)
+    replace = BoolProperty(name="Replace Selection", default=True)
+    sound = BoolProperty(name="Sound", default=True)
+    
+    def invoke(self, context, event):
+        self.start = context.scene.frame_current
+        return ImportHelper.invoke(self, context, event)
+    
     def draw(self, context):
         draw_render_options(self.layout, context.scene)
+        self.layout.separator()
+        self.layout.label("Image Strip/Movie Options")
+        self.layout.prop(self, "rel_path")
+        self.layout.prop(self, "start")
+        self.layout.prop(self, "channel")
+        self.layout.prop(self, "replace")
+        self.layout.prop(self, "sound")
     
     def execute(self, context):
-        #bpy.ops.sequencer.image_strip_add(directory="", files=["FirstAnim.0000.png", "FirstAnim.0001.png", "FirstAnim.0002.png"])
+        from renderchan.file import RenderChanFile
+        
+        path = bpy.path.abspath(self.properties.filepath)
+        file = RenderChanFile(path, rcl.main.modules, rcl.main.projects)
+        if file.project == None or not file.module:
+            # Not a RenderChan file, just add
+            if os.path.splitext(path)[1] in bpy.path.extensions_movie:
+                bpy.ops.sequencer.movie_strip_add(filepath=path, relative_path=self.rel_path, frame_start=self.start, channel=self.channel, replace_sel=self.replace, sound=self.sound)
+            elif os.path.splitext(path)[1] in bpy.path.extensions_image:
+                file_list = []
+                for f in self.files:
+                    file_list.append({"name": f.name})
+                bpy.ops.sequencer.image_strip_add(directory=os.path.dirname(bpy.path.abspath(self.filepath)), files=file_list, relative_path=self.rel_path, frame_start=self.start, channel=self.channel, replace_sel=self.replace)
+            else:
+                self.report({"ERROR"}, "Could not handle this file format");
+        else:
+            # It is a RenderChan file, render if necessary and then add.
+            if file.getRenderPath() == path:
+                path = file.getPath()
+            render_file(file, context.scene, False)
+            
+            if os.path.isdir(file.getRenderPath()):
+                file_list = []
+                for i in range(file.getStartFrame(), file.getEndFrame()):
+                    file_list.append({"name": "file.%05d.%s" % (i, file.getFormat())})
+                bpy.ops.sequencer.image_strip_add(directory=file.getRenderPath(), files=file_list, relative_path=self.rel_path, frame_start=self.start, channel=self.channel, replace_sel=self.replace)
+            elif os.path.splitext(path)[1] in bpy.path.extensions_movie:
+                bpy.ops.sequencer.movie_strip_add(filepath=file.getRenderPath(), relative_path=self.rel_path, frame_start=self.start, channel=self.channel, replace_sel=self.replace, sound=self.sound)
+            elif os.path.splitext(path)[1] in bpy.path.extensions_image:
+                bpy.ops.sequencer.image_strip_add(directory=os.path.dirname(file.getRenderPath()), files=[{"name":file.getRenderPath()}], relative_path=self.rel_path, frame_start=self.start, channel=self.channel, replace_sel=self.replace)
+            else:
+                self.report({"ERROR"}, "Could not handle this file format");
         return {"FINISHED"}
 
 class RenderChanRender(Operator):
@@ -366,7 +415,7 @@ def register():
     bpy.utils.register_class(RenderChanRender)
     #bpy.types.INFO_MT_file_import.append(add_import_button)
     bpy.types.RENDER_PT_render.append(add_render_button)
-    #bpy.types.SEQUENCER_MT_add.append(add_add_button)
+    bpy.types.SEQUENCER_MT_add.append(add_sequence_add_button)
     bpy.app.handlers.load_post.append(load_handler)
 
 def unregister():
@@ -385,7 +434,7 @@ def unregister():
     bpy.utils.unregister_class(RenderChanRender)
     #bpy.types.INFO_MT_mesh_add.remove(add_import_button)
     bpy.types.RENDER_PT_render.append(add_render_button)
-    #bpy.types.SEQUENCER_MT_add.remove(add_add_button)
+    bpy.types.SEQUENCER_MT_add.remove(add_sequence_add_button)
     bpy.app.handlers.load_post.remove(load_handler)
 
 if __name__ == "__main__":
