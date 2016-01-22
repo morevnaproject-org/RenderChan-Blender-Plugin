@@ -306,6 +306,7 @@ class RenderChanSequenceAdd(Operator, ImportHelper):
     channel = IntProperty(name="Channel", default=1, min=1, max=32)
     replace = BoolProperty(name="Replace Selection", default=True)
     sound = BoolProperty(name="Sound", default=True)
+    cache = BoolProperty(name="Cache sound", default=False)
     
     def invoke(self, context, event):
         self.start = context.scene.frame_current
@@ -320,6 +321,7 @@ class RenderChanSequenceAdd(Operator, ImportHelper):
         self.layout.prop(self, "channel")
         self.layout.prop(self, "replace")
         self.layout.prop(self, "sound")
+        self.layout.prop(self, "cache")
     
     def execute(self, context):
         from renderchan.file import RenderChanFile
@@ -335,6 +337,8 @@ class RenderChanSequenceAdd(Operator, ImportHelper):
                 for f in self.files:
                     file_list.append({"name": f.name})
                 bpy.ops.sequencer.image_strip_add(directory=os.path.dirname(bpy.path.abspath(self.filepath)), files=file_list, relative_path=self.rel_path, frame_start=self.start, channel=self.channel, replace_sel=self.replace)
+            elif os.path.splitext(path)[1] in bpy.path.extensions_audio:
+                bpy.ops.sequencer.sound_strip_add(filepath=path, relative_path=self.rel_path, frame_start=self.start, channel=self.channel, replace_sel=self.replace, cache=self.cache)
             else:
                 self.report({"ERROR"}, "Could not handle this file format");
         else:
