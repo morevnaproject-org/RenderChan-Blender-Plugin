@@ -197,7 +197,8 @@ def profile_items(scene, context):
 
 class RenderOptions(bpy.types.PropertyGroup):
     profile = EnumProperty(items=profile_items, name="Profile", description="What profile RenderChan should use. Leave blank to use the project's default.")
-    stereo = EnumProperty(items=[("none", "None", "Do not render with stereo-3D."), ("v", "Vertical", "Vertical stereo-3D"), ("h", "Horizontal", "Horizontal stereo-3D"), \
+    stereo = EnumProperty(items=[("none", "None", "Do not render with stereo-3D."), ("v", "Vertical", "Vertical stereo-3D"), ("vc", "Vertical Cross", "Crossed vertical stereo-3D"), \
+        ("h", "Horizontal", "Horizontal stereo-3D"), ("hc", "Horizontal Cross", "Crossed horizontal stereo-3D"), \
         ("l", "Left", "Left stereo image"), ("r", "Right", "Right stereo image")], name="Stereo", description="The type of stereoscopic 3D rendering to use.", default="none")
     render_farm = EnumProperty(items=[("none", "None", "Do not use a render farm"), ("afanasy", "Afanasy render farm", "Use Afanasy render farm")], \
         name="Render farm", description="Determines what render farm, if any, to use.", default="none")
