@@ -60,9 +60,9 @@ def refresh_everything():
                     s.image = s.image
 
 def draw_render_options(layout, scene):
-    layout.prop(scene.renderchan, "profile")
-    layout.prop(scene.renderchan, "stereo")
-    layout.prop(scene.renderchan, "render_farm")
+    layout.prop(scene.renderchan, "profile", icon="UI")
+    layout.prop(scene.renderchan, "stereo", icon="VIEW3D")
+    layout.prop(scene.renderchan, "render_farm", icon="WORLD")
     
     if scene.renderchan.render_farm == "afanasy":
         layout.prop(scene.renderchan, "cgru_location")
@@ -75,9 +75,11 @@ def add_sequence_add_button(self, context):
     self.layout.operator(RenderChanSequenceAdd.bl_idname, text="RenderChan Media")
     
 def add_render_button(self, context):
-    self.layout.separator()
-    draw_render_options(self.layout, context.scene)
-    self.layout.operator(RenderChanRender.bl_idname)
+    global rcl
+    if rcl.is_project:
+        self.layout.separator()
+        draw_render_options(self.layout, context.scene)
+        self.layout.operator(RenderChanRender.bl_idname, icon="RENDER_ANIMATION")
 
 def render_file(file, scene, dependenciesOnly):
     global rcl
@@ -85,12 +87,15 @@ def render_file(file, scene, dependenciesOnly):
         rcl.main.setProfile(scene.renderchan.profile)
     if scene.renderchan.render_farm != "none":
         rcl.main.renderfarm_engine = scene.renderchan.render_farm
+    else:
+        rcl.main.renderfarm_engine = ""
     if scene.renderchan.render_farm == "afanasy" and scene.renderchan.cgru_location:
         rcl.main.cgru_location = scene.renderchan.cgru_location
     if scene.renderchan.stereo == "none":
         stereo = None
     else:
         stereo = scene.renderchan.stereo
+    
     rcl.main.submit(file, dependenciesOnly, False, stereo)
     
     # Temporary fix
@@ -108,12 +113,12 @@ class LoadDialog(bpy.types.Operator):
         self.layout.label("Modified dependencies detected.")
         self.layout.prop(self, "should_update")
         # Draw does not appear to be called on property updates for dialogs, so we can't use draw_render_options
-        self.layout.prop(context.scene.renderchan, "profile")
-        self.layout.prop(context.scene.renderchan, "stereo")
+        self.layout.prop(context.scene.renderchan, "profile", icon="UI")
+        self.layout.prop(context.scene.renderchan, "stereo", icon="VIEW3D")
         self.layout.separator()
-        self.layout.prop(context.scene.renderchan, "render_farm")
+        self.layout.prop(context.scene.renderchan, "render_farm", icon="WORLD")
         self.layout.label("Afanasy Options")
-        self.layout.prop(context.scene.renderchan, "cgru_location") 
+        self.layout.prop(context.scene.renderchan, "cgru_location")
     
     def invoke(self, context, event):
         return context.window_manager.invoke_props_dialog(self)
@@ -181,7 +186,7 @@ def profile_items(scene, context):
     global rcl
     
     rcl.items = [("default", "Default", "The default profile")]
-    if not os.path.exists(os.path.join(rcl.blend.projectPath, "project.conf")):
+    if not rcl.blend or not os.path.exists(os.path.join(rcl.blend.projectPath, "project.conf")):
         return rcl.items
     config = configparser.ConfigParser()
     config.read_file(ini_wrapper(os.path.join(rcl.blend.projectPath, "project.conf")))
@@ -223,7 +228,7 @@ class ImageEditorPanel(bpy.types.Panel):
     
     def draw(self, context):
         draw_render_options(self.layout, context.scene)
-        self.layout.operator("image.rc_refresh")
+        self.layout.operator("image.rc_refresh", icon="FILE_REFRESH")
 
 class SequenceEditorPanel(bpy.types.Panel):
     bl_label = "RenderChan"
@@ -265,7 +270,7 @@ class SequenceEditorPanel(bpy.types.Panel):
     
     def draw(self, context):
         draw_render_options(self.layout, context.scene)
-        self.layout.operator("sequencer.rc_refresh")
+        self.layout.operator("sequencer.rc_refresh", icon="FILE_REFRESH")
 
 class RenderChanImporter(Operator, ImportHelper):
     bl_idname = "import.renderchan"
@@ -398,6 +403,7 @@ class RenderChanLibrary():
         self.main.datadir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "templates")
         self.is_project = False
         self.items = []
+        self.blend = None
 
 def register():
     # DO NOT REMOVE THIS LINE!! Without it, the plugin becomes a fork bomb.
