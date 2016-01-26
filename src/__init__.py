@@ -376,10 +376,10 @@ class RenderChanSequenceAdd(Operator, ImportHelper):
                 for i in range(file.getStartFrame(), file.getEndFrame()):
                     file_list.append({"name": "file.%05d.%s" % (i, file.getFormat())})
                 bpy.ops.sequencer.image_strip_add(directory=file.getRenderPath(), files=file_list, relative_path=self.rel_path, frame_start=self.start, channel=self.channel, replace_sel=self.replace)
-            elif os.path.splitext(path)[1] in bpy.path.extensions_movie:
+            elif os.path.splitext(file.getRenderPath())[1] in bpy.path.extensions_movie:
                 bpy.ops.sequencer.movie_strip_add(filepath=file.getRenderPath(), relative_path=self.rel_path, frame_start=self.start, channel=self.channel, replace_sel=self.replace, sound=self.sound)
-            elif os.path.splitext(path)[1] in bpy.path.extensions_image:
-                bpy.ops.sequencer.image_strip_add(directory=os.path.dirname(file.getRenderPath()), files=[{"name":file.getRenderPath()}], relative_path=self.rel_path, frame_start=self.start, channel=self.channel, replace_sel=self.replace)
+            elif os.path.splitext(file.getRenderPath())[1] in bpy.path.extensions_image:
+                bpy.ops.sequencer.image_strip_add(directory=os.path.dirname(file.getRenderPath()), files=[{"name":os.path.basename(file.getRenderPath())}], relative_path=self.rel_path, frame_start=self.start, channel=self.channel, replace_sel=self.replace)
             else:
                 self.report({"ERROR"}, "Could not handle this file format");
         return {"FINISHED"}
