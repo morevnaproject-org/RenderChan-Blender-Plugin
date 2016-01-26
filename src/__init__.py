@@ -6,6 +6,8 @@ import subprocess
 import os.path
 from bpy.props import *
 from shutil import which
+from contextlib import redirect_stdout
+import io
 import sys
 # Add blender to PATH if its not already on there
 if not which("blender"):
@@ -38,7 +40,9 @@ bl_info = {
 }
 
 def reinit_renderchan():
-    rcl.main = RenderChan()
+    output = io.StringIO()
+    with redirect_stdout(output):
+        rcl.main = RenderChan()
     rcl.main.datadir = os.path.join(os.path.dirname(os.path.abspath(__file__)), "RenderChan", "templates")
     if bpy.context.scene.renderchan.profile != "default":
         rcl.main.setProfile(bpy.context.scene.renderchan.profile)
@@ -96,7 +100,9 @@ def render_file(file, scene, dependenciesOnly):
     else:
         stereo = scene.renderchan.stereo
     
-    rcl.main.submit(file, dependenciesOnly, False, stereo)
+    output = io.StringIO()
+    with redirect_stdout(output):
+        rcl.main.submit(file, dependenciesOnly, False, stereo)
     
     # Temporary fix
     reinit_renderchan()
@@ -136,7 +142,9 @@ class RCRefreshImage(bpy.types.Operator):
     def execute(self, context):
         from renderchan.file import RenderChanFile
         global rcl
-        file = RenderChanFile(bpy.path.abspath(context.edit_image.filepath), rcl.main.modules, rcl.main.projects)
+        output = io.StringIO()
+        with redirect_stdout(output):
+            file = RenderChanFile(bpy.path.abspath(context.edit_image.filepath), rcl.main.modules, rcl.main.projects)
         render_file(file, context.scene, False)
         return {"FINISHED"}
 
@@ -175,7 +183,9 @@ class RCRefreshSequence(bpy.types.Operator):
         from renderchan.file import RenderChanFile
         global rcl
         for sequence in context.selected_sequences:
-            files = get_renderchan_sequences(sequence)
+            output = io.StringIO()
+            with redirect_stdout(output):
+                files = get_renderchan_sequences(sequence)
             for file in files:
                 render_file(file, context.scene, False)
         return {"FINISHED"}
@@ -222,9 +232,10 @@ class ImageEditorPanel(bpy.types.Panel):
             return False
         
         from renderchan.file import RenderChanFile
-        
         path = bpy.path.abspath(context.edit_image.filepath)
-        file = RenderChanFile(path, rcl.main.modules, rcl.main.projects)
+        output = io.StringIO()
+        with redirect_stdout(output):
+            file = RenderChanFile(path, rcl.main.modules, rcl.main.projects)
         return file.project != None and file.module and file.getRenderPath() == path
     
     def draw(self, context):
@@ -264,9 +275,11 @@ class SequenceEditorPanel(bpy.types.Panel):
         if not rcl.is_project or context.selected_sequences is None:
             return False
         
-        for sequence in context.selected_sequences:
-            if is_renderchan_sequence(sequence):
-                return True
+        output = io.StringIO()
+        with redirect_stdout(output):
+            for sequence in context.selected_sequences:
+                if is_renderchan_sequence(sequence):
+                    return True
         return False
     
     def draw(self, context):
@@ -336,7 +349,9 @@ class RenderChanSequenceAdd(Operator, ImportHelper):
         from renderchan.file import RenderChanFile
         
         path = bpy.path.abspath(self.properties.filepath)
-        file = RenderChanFile(path, rcl.main.modules, rcl.main.projects)
+        output = io.StringIO()
+        with redirect_stdout(output):
+            file = RenderChanFile(path, rcl.main.modules, rcl.main.projects)
         if file.project == None or not file.module:
             # Not a RenderChan file, just add
             if os.path.splitext(path)[1] in bpy.path.extensions_movie:
@@ -376,7 +391,9 @@ class RenderChanRender(Operator):
     def execute(self, context):
         from renderchan.file import RenderChanFile
         
-        file = RenderChanFile(bpy.path.abspath(context.blend_data.filepath), rcl.main.modules, rcl.main.projects)
+        output = io.StringIO()
+        with redirect_stdout(output):
+            file = RenderChanFile(bpy.path.abspath(context.blend_data.filepath), rcl.main.modules, rcl.main.projects)
         render_file(file, context.scene, False)
         return {"FINISHED"}
 
@@ -385,12 +402,15 @@ def load_handler(something):
     from renderchan.file import RenderChanFile
     
     global rcl
-    rcl.blend = RenderChanFile(bpy.data.filepath, rcl.main.modules, rcl.main.projects)
+    output = io.StringIO()
+    with redirect_stdout(output):
+        rcl.blend = RenderChanFile(bpy.data.filepath, rcl.main.modules, rcl.main.projects)
     rcl.is_project = rcl.blend.project != None
     if not rcl.is_project:
         return
     
-    deps = rcl.main.parseDirectDependency(rcl.blend, False, False)
+    with redirect_stdout(output):
+        deps = rcl.main.parseDirectDependency(rcl.blend, False, False)
     # Temporary fix
     reinit_renderchan()
     if deps[1]:
@@ -400,7 +420,9 @@ class RenderChanLibrary():
     def __init__(self):
         from renderchan.file import RenderChanFile
         
-        self.main = RenderChan()
+        output = io.StringIO()
+        with redirect_stdout(output):
+            self.main = RenderChan()
         self.main.datadir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "templates")
         self.is_project = False
         self.items = []
