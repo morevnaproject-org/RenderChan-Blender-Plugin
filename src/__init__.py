@@ -413,7 +413,7 @@ def load_handler(something):
         deps = rcl.main.parseDirectDependency(rcl.blend, False, True)
     # Temporary fix
     reinit_renderchan()
-    if deps[1]:
+    if deps[0]:
         bpy.ops.object.rc_load_dialog('INVOKE_DEFAULT')
 
 class RenderChanLibrary():
