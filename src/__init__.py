@@ -410,7 +410,7 @@ def load_handler(something):
         return
     
     with redirect_stdout(output):
-        deps = rcl.main.parseDirectDependency(rcl.blend, False, False)
+        deps = rcl.main.parseDirectDependency(rcl.blend, False, True)
     # Temporary fix
     reinit_renderchan()
     if deps[1]:
